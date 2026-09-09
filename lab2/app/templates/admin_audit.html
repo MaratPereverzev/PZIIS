@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Журнал аудита — pziis-vault{% endblock %}
+{% block content %}
+<h1>Журнал аудита</h1>
+<p class="note">
+  Роли приложения выданы на эту таблицу только <code>INSERT</code> и
+  <code>SELECT</code>: скомпрометированное приложение не сможет изменить
+  или удалить запись журнала. Открытых данных в журнале нет — только
+  идентификаторы объектов, иначе журнал стал бы вторым, незащищённым
+  хранилищем конфиденциальной информации. Поисковые фразы не пишутся.
+</p>
+
+<table>
+  <thead>
+    <tr><th>Время</th><th>Субъект</th><th>Действие</th><th>Объект</th>
+        <th>IP</th><th>Итог</th></tr>
+  </thead>
+  <tbody>
+  {% for row in rows %}
+    <tr class="outcome-{{ row.outcome }}">
+      <td class="mono">{{ row.at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+      <td>{{ row.actor_login or '—' }}</td>
+      <td><code>{{ row.action }}</code></td>
+      <td>{{ row.object_kind or '' }}{% if row.object_id is not none %} #{{ row.object_id }}{% endif %}</td>
+      <td class="mono">{{ row.ip_addr or '—' }}</td>
+      <td>{{ row.outcome }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="empty">Журнал пуст.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

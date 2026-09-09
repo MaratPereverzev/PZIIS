@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Вход — pziis-vault{% endblock %}
+{% block content %}
+<h1>Вход</h1>
+<form method="post" action="/login" class="card">
+  <label>Логин <input name="login" maxlength="64" required autocomplete="username"></label>
+  <label>Пароль <input name="password" type="password" maxlength="256" required
+                       autocomplete="current-password"></label>
+  <button type="submit">Войти</button>
+</form>
+<p>Нет учётной записи? <a href="/register">Зарегистрироваться</a></p>
+<p class="note">
+  Текст ошибки одинаков при неверном пароле, несуществующем логине и
+  заблокированной учётной записи: иначе форма входа выдавала бы наличие
+  учётных записей в системе.
+</p>
+{% endblock %}

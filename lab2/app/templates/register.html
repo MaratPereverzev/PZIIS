@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Регистрация — pziis-vault{% endblock %}
+{% block content %}
+<h1>Регистрация</h1>
+<form method="post" action="/register" class="card">
+  <label>Логин <input name="login" minlength="3" maxlength="64" required></label>
+  <label>Пароль <input name="password" type="password" maxlength="256" required
+                       autocomplete="new-password"></label>
+  <label>Повтор пароля <input name="password2" type="password" maxlength="256" required
+                              autocomplete="new-password"></label>
+  <button type="submit">Создать</button>
+</form>
+<p class="note">
+  Минимальная длина пароля — {{ min_len }} символов; пароли из списка
+  скомпрометированных отклоняются. Новая учётная запись получает роль
+  <code>guest</code> — минимум полномочий; повысить роль может только
+  администратор.
+</p>
+{% endblock %}

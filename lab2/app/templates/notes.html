@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Неконфиденциальные данные — pziis-vault{% endblock %}
+{% block content %}
+<h1>Неконфиденциальные данные</h1>
+<p class="note">
+  Класс данных: <strong>неконфиденциальные</strong>. Хранятся в открытом
+  виде, поиск — полнотекстовый по индексу <code>tsvector</code>.
+  Записи с видимостью <code>public</code> доступны на чтение всем
+  пользователям, включая гостя; <code>internal</code> — только владельцу
+  и администратору (политика построчной защиты в СУБД).
+</p>
+
+<form method="get" action="/notes" class="searchbar">
+  <input name="q" value="{{ q }}" maxlength="200" placeholder="Поиск по заголовку и тексту">
+  <button type="submit">Найти</button>
+  {% if q %}<a href="/notes" class="link">сбросить</a>{% endif %}
+</form>
+
+{% if actor.can_write() %}
+<details class="card">
+  <summary>Создать запись</summary>
+  <form method="post" action="/notes">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <label>Заголовок <input name="title" maxlength="200" required></label>
+    <label>Текст <textarea name="body" maxlength="8000" rows="4"></textarea></label>
+    <label>Видимость
+      <select name="visibility">
+        <option value="public">public — видна всем</option>
+        <option value="internal">internal — только владельцу и администратору</option>
+      </select>
+    </label>
+    <button type="submit">Создать</button>
+  </form>
+</details>
+{% else %}
+<p class="note">Роль <code>guest</code>: доступно только чтение.</p>
+{% endif %}
+
+<table>
+  <thead>
+    <tr><th>#</th><th>Заголовок</th><th>Текст</th><th>Видимость</th>
+        <th>Владелец</th><th>Изменена</th><th></th></tr>
+  </thead>
+  <tbody>
+  {% for row in rows %}
+    <tr>
+      <td>{{ row.id }}</td>
+      <td>{{ row.title }}</td>
+      <td class="body">{{ row.body }}</td>
+      <td><code>{{ row.visibility }}</code></td>
+      <td>{{ row.owner_login }}</td>
+      <td>{{ row.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td>
+        {% if actor.can_write() and (row.owner_id == actor.id or actor.is_admin) %}
+        <details>
+          <summary>изменить</summary>
+          <form method="post" action="/notes/{{ row.id }}/edit">
+            <input type="hidden" name="csrf_token" value="{{ csrf }}">
+            <label>Заголовок <input name="title" value="{{ row.title }}" maxlength="200" required></label>
+            <label>Текст <textarea name="body" maxlength="8000" rows="3">{{ row.body }}</textarea></label>
+            <label>Видимость
+              <select name="visibility">
+                <option value="public" {% if row.visibility == 'public' %}selected{% endif %}>public</option>
+                <option value="internal" {% if row.visibility == 'internal' %}selected{% endif %}>internal</option>
+              </select>
+            </label>
+            <button type="submit">Сохранить</button>
+          </form>
+          <form method="post" action="/notes/{{ row.id }}/delete">
+            <input type="hidden" name="csrf_token" value="{{ csrf }}">
+            <button type="submit" class="danger">Удалить</button>
+          </form>
+        </details>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="empty">Записей нет.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

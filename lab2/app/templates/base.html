@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}pziis-vault{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <span class="brand">pziis-vault</span>
+  {% if actor %}
+    <nav>
+      <a href="/notes">Неконфиденциальные</a>
+      {% if actor.role in ('admin', 'user') %}<a href="/secrets">Конфиденциальные</a>{% endif %}
+      {% if actor.is_admin %}
+        <a href="/admin/accounts">Учётные записи</a>
+        <a href="/admin/secrets">Обзор секретов</a>
+        <a href="/admin/audit">Аудит</a>
+      {% endif %}
+    </nav>
+    <span class="who">
+      {{ actor.login }} <em>({{ actor.role }})</em>
+      <form method="post" action="/logout" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <button type="submit">Выйти</button>
+      </form>
+      <form method="post" action="/logout/all" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <button type="submit" class="link">все сессии</button>
+      </form>
+    </span>
+  {% endif %}
+</header>
+
+<main>
+  {% if ok %}<p class="ok">{{ ok }}</p>{% endif %}
+  {% if err %}<p class="err">{{ err }}</p>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+
+<footer>
+  Лабораторная работа №2.1 по ПЗИИС. Все значения выводятся через
+  автоэкранирование Jinja2, скрипты запрещены политикой CSP.
+</footer>
+</body>
+</html>

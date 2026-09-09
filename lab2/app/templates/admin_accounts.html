@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Учётные записи — pziis-vault{% endblock %}
+{% block content %}
+<h1>Учётные записи</h1>
+<p class="note">
+  Роли соответствуют политике безопасности лабораторной работы №1:
+  <code>admin</code> — полный доступ к подсистемам и администрированию,
+  <code>user</code> — полные права в выданной подсистеме,
+  <code>guest</code> — только чтение публичных фрагментов.
+  Смена роли и блокировка немедленно закрывают все сессии пользователя.
+</p>
+
+<details class="card">
+  <summary>Создать учётную запись</summary>
+  <form method="post" action="/admin/accounts">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <label>Логин <input name="login" minlength="3" maxlength="64" required></label>
+    <label>Пароль <input name="password" type="password" maxlength="256" required></label>
+    <label>Роль
+      <select name="app_role">
+        <option value="guest">guest</option>
+        <option value="user">user</option>
+        <option value="admin">admin</option>
+      </select>
+    </label>
+    <button type="submit">Создать</button>
+  </form>
+  <p class="note">Минимальная длина пароля — {{ min_len }} символов.</p>
+</details>
+
+<table>
+  <thead>
+    <tr><th>#</th><th>Логин</th><th>Роль</th><th>Активна</th>
+        <th>Блокировка до</th><th>Сессий</th><th>Действия</th></tr>
+  </thead>
+  <tbody>
+  {% for row in rows %}
+    <tr>
+      <td>{{ row.id }}</td>
+      <td>{{ row.login }}{% if row.id == actor.id %} <em>(вы)</em>{% endif %}</td>
+      <td><code>{{ row.app_role }}</code></td>
+      <td>{{ 'да' if row.is_active else 'нет' }}</td>
+      <td>{{ row.locked_until.strftime('%Y-%m-%d %H:%M') if row.locked_until else '—' }}</td>
+      <td>{{ row.sessions }}</td>
+      <td>
+        {% if row.id != actor.id %}
+        <form method="post" action="/admin/accounts/{{ row.id }}/role" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}">
+          <select name="app_role">
+            <option value="guest" {% if row.app_role == 'guest' %}selected{% endif %}>guest</option>
+            <option value="user"  {% if row.app_role == 'user'  %}selected{% endif %}>user</option>
+            <option value="admin" {% if row.app_role == 'admin' %}selected{% endif %}>admin</option>
+          </select>
+          <button type="submit">роль</button>
+        </form>
+        <form method="post" action="/admin/accounts/{{ row.id }}/active" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}">
+          <button type="submit">{{ 'заблокировать' if row.is_active else 'включить' }}</button>
+        </form>
+        <form method="post" action="/admin/accounts/{{ row.id }}/delete" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}">
+          <button type="submit" class="danger">удалить</button>
+        </form>
+        {% else %}
+        <span class="note">операции над собственной записью запрещены</span>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

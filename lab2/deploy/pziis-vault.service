@@ -1,0 +1,54 @@
+# Развёртывание на виртуальной машине (вариант из методички:
+# «виртуальная машина с установленной ОС»).
+#
+# Ужесточение окружения средствами systemd - это раздел «политика
+# безопасности операционной системы» отчёта в исполняемом виде.
+
+[Unit]
+Description=pziis-vault (лабораторная работа №2.1 по ПЗИИС)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=pziis
+Group=pziis
+WorkingDirectory=/opt/pziis-vault
+# Приложение слушает только петлевой интерфейс: снаружи недостижимо,
+# единственный вход - через nginx.
+ExecStart=/opt/pziis-vault/venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 --port 8000 --no-server-header \
+    --forwarded-allow-ips 127.0.0.1
+# Мастер-ключ и пароль к БД: файл 0640 root:pziis, вне репозитория.
+EnvironmentFile=/etc/pziis-vault/keys.env
+UMask=0027
+Restart=on-failure
+
+# --- ужесточение ---------------------------------------------------------
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectProc=invisible
+ReadWritePaths=/var/log/pziis-vault
+# Ни одна capability приложению не нужна: порт 443 слушает nginx.
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+LockPersonality=yes
+RemoveIPC=yes
+
+[Install]
+WantedBy=multi-user.target

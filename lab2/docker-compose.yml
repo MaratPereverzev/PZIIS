@@ -1,0 +1,73 @@
+# Стенд лабораторной работы №2.1.
+#
+# Три контейнера соответствуют трём доверительным границам из проекта:
+#   nginx  - терминация TLS, лимиты, заголовки безопасности;
+#   app    - приложение под непривилегированным пользователем;
+#   db     - PostgreSQL, наружу не публикуется вовсе.
+#
+# Наружу открыт единственный порт - 8443/tcp у nginx.
+
+name: pziis-vault
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: app_db
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      # Метод аутентификации задаётся явно: trust в конфигурации
+      # отсутствует, пароль по сети не передаётся в открытом виде.
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=peer"
+      # Пароли ролей приходят в скрипты инициализации через окружение,
+      # а не зашиты в SQL.
+      VAULT_DB_PASSWORD: ${VAULT_DB_PASSWORD:?}
+      LAB1_ADMIN_PASSWORD: ${LAB1_ADMIN_PASSWORD:?}
+      LAB1_USER_PASSWORD: ${LAB1_USER_PASSWORD:?}
+      LAB1_GUEST_PASSWORD: ${LAB1_GUEST_PASSWORD:?}
+    volumes:
+      - ./sql:/docker-entrypoint-initdb.d:ro
+      - pgdata:/var/lib/postgresql/data
+    # Порт на хост не публикуется: СУБД доступна только внутренней сети.
+    healthcheck:
+      # Проверка выполняется от системного пользователя postgres: иначе
+      # peer-аутентификация отклоняет её и в журнал СУБД сыплются FATAL.
+      test: ["CMD-SHELL", "su-exec postgres pg_isready -q -d app_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    environment:
+      VAULT_DSN: postgresql://vault_app:${VAULT_DB_PASSWORD:?}@db:5432/app_db
+      VAULT_MASTER_KEY: ${VAULT_MASTER_KEY:?}
+      VAULT_ADMIN_LOGIN: ${VAULT_ADMIN_LOGIN:-admin_sys}
+      VAULT_ADMIN_PASSWORD: ${VAULT_ADMIN_PASSWORD:?}
+      VAULT_COOKIE_SECURE: ${VAULT_COOKIE_SECURE:-1}
+    depends_on:
+      db:
+        condition: service_healthy
+    # Порт на хост не публикуется: единственный вход - через nginx.
+    read_only: true          # файловая система контейнера только на чтение
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL                  # ни одной capability приложению не нужно
+    security_opt:
+      - no-new-privileges:true
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "127.0.0.1:8443:443"   # публикуется только на петлевом интерфейсе хоста
+    environment:
+      VAULT_UPSTREAM: app:8000
+    volumes:
+      - ./deploy/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./deploy/proxy_headers.conf:/etc/nginx/proxy_headers.conf:ro
+      - ./deploy/tls:/etc/nginx/tls:ro
+    depends_on:
+      - app
+
+volumes:
+  pgdata:

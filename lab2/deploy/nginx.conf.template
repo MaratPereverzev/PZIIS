@@ -1,0 +1,66 @@
+# Обратный прокси: терминация TLS, ограничение частоты запросов,
+# заголовки безопасности. Приложение за ним не публикует ни одного порта.
+
+# Зоны лимитов. Ограничение на /login стоит ЗДЕСЬ, а не в приложении:
+# Argon2 с памятью 64 МиБ сам является ресурсом, и поток запросов не должен
+# до него доходить (иначе форма входа превращается в вектор отказа
+# в обслуживании).
+limit_req_zone $binary_remote_addr zone=login_zone:10m rate=5r/m;
+limit_req_zone $binary_remote_addr zone=general_zone:10m rate=10r/s;
+limit_conn_zone $binary_remote_addr zone=conn_zone:10m;
+
+# Версия nginx в ответах не раскрывается.
+server_tokens off;
+
+upstream vault_app {
+    server ${VAULT_UPSTREAM};
+    keepalive 16;
+}
+
+# Весь незащищённый трафик перенаправляется на TLS.
+server {
+    listen 80;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+
+    ssl_certificate     /etc/nginx/tls/server.crt;
+    ssl_certificate_key /etc/nginx/tls/server.key;
+
+    # Только современные версии протокола и только AEAD-шифронаборы.
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-RSA-AES128-GCM-SHA256;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_tickets off;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # Дешёвая отсечка примитивного flood и защита от Slowloris.
+    client_max_body_size 64k;
+    client_body_timeout 10s;
+    client_header_timeout 10s;
+    limit_conn conn_zone 20;
+    limit_req zone=general_zone burst=20 nodelay;
+    limit_req_status 429;
+    limit_conn_status 429;
+
+    # Поисковые фразы по конфиденциальным данным отправляются методом POST,
+    # поэтому в журнал доступа попадает только путь /secrets/search
+    # без параметров.
+    access_log /var/log/nginx/access.log;
+
+    location = /login {
+        limit_req zone=login_zone burst=3 nodelay;
+        proxy_pass http://vault_app;
+        include /etc/nginx/proxy_headers.conf;
+    }
+
+    location / {
+        proxy_pass http://vault_app;
+        include /etc/nginx/proxy_headers.conf;
+    }
+}
